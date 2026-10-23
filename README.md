@@ -50,8 +50,18 @@ The mode belongs to the **session**, not to the app, so the URL decides what som
 | `/?admin` | Facilitator view. |
 
 Two standing sessions are seeded so the chooser always has somewhere to send someone:
-`main` (technical track) and `mainfull` (full engagement). Neither can be deleted from the UI.
+`main` (technical track) and `mainfull` (full engagement). Neither can be deleted.
 Picking a mode in the chooser sets `?s=` and so produces a shareable URL.
+
+### Managing sessions
+
+The Facilitator tab's **Sessions** panel lists every session with its mode, participant count,
+answer count and hotwash notes, and deletes any number of them at once. Deletion removes the
+session's participants, answers and hotwash notes, needs an explicit confirmation that states
+exactly how many records will go, and cannot be undone — export from the Responses tab first.
+The two standing sessions are excluded from the list. Deleting the session you are currently
+viewing redirects you to `main`. A single session can also be reset (answers cleared, session
+kept) or deleted from *Submissions → Reset or delete this session*.
 
 Note the earlier behaviour this replaced: the bare URL used to serve `main` silently, which is
 the technical track, so opening the app's plain address showed the technical track no matter

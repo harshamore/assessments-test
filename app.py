@@ -924,6 +924,66 @@ def mode_block(sess):
         track_card(current)
 
 
+def sessions_panel(current_code):
+    """Manage every session from one place, rather than having to select each one first."""
+    sessions = store.list_sessions()
+    stats = store.session_stats()
+    with st.container(border=True):
+        st.markdown("### Sessions")
+        st.caption(f"{len(sessions)} session(s). Deleting one permanently removes its participants, "
+                   "answers and hotwash notes. Export from the Responses tab first if you need the data.")
+        rows = []
+        for s in sessions:
+            k = s["code"]
+            st_ = stats.get(k, {})
+            rows.append({"Session": s["name"], "Code": k,
+                         "Mode": TRACKS[(s.get("track") or "technical")]["name"],
+                         "Participants": st_.get("participants", 0),
+                         "Answers": st_.get("answers", 0),
+                         "Hotwash notes": st_.get("notes", 0),
+                         "Created": pd.to_datetime(s["created_at"], unit="s").strftime("%Y-%m-%d %H:%M UTC"),
+                         "": "← open" if k == current_code else ("standing" if k in store.STANDING_SESSIONS else "")})
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+
+        deletable = [s["code"] for s in sessions if s["code"] not in store.STANDING_SESSIONS]
+        if not deletable:
+            st.caption("Only the two standing sessions exist, and those cannot be deleted.")
+            return
+
+        def _label(k):
+            s = next(x for x in sessions if x["code"] == k)
+            st_ = stats.get(k, {})
+            return (f"{s['name']} ({k}) · {TRACKS[(s.get('track') or 'technical')]['name']} · "
+                    f"{st_.get('participants', 0)} participants, {st_.get('answers', 0)} answers")
+
+        with st.expander("Delete sessions"):
+            victims = st.multiselect("Sessions to delete", deletable, format_func=_label,
+                                     key=f"delsel_{current_code}",
+                                     help="The two standing sessions (main, mainfull) are not listed: the "
+                                          "landing page needs them.")
+            if victims:
+                tot_p = sum(stats.get(v, {}).get("participants", 0) for v in victims)
+                tot_a = sum(stats.get(v, {}).get("answers", 0) for v in victims)
+                st.warning(f"This will permanently delete **{len(victims)} session(s)**, "
+                           f"**{tot_p} participant record(s)** and **{tot_a} answer(s)**. "
+                           "This cannot be undone.", icon=":material/delete_forever:")
+                for v in victims:
+                    st.caption(f"• {_label(v)}")
+            sure = st.checkbox("I understand this permanently deletes these sessions and every answer in them",
+                               key=f"delsure_{current_code}", disabled=not victims)
+            if st.button(f"Delete {len(victims)} session(s)" if victims else "Delete sessions",
+                         type="primary", disabled=not (victims and sure), width="stretch"):
+                deleted, skipped = store.delete_sessions(victims)
+                st.session_state.flash_admin = (
+                    f"Deleted {len(deleted)} session(s): {', '.join(deleted)}."
+                    + (f" Skipped standing session(s): {', '.join(skipped)}." if skipped else ""))
+                # The session selectbox is already instantiated, so the switch has to be
+                # deferred rather than assigned here.
+                if current_code in deleted:
+                    st.session_state.admin_code_next = "main"
+                st.rerun()
+
+
 def facilitator_view(sess):
     code = sess["code"]
     link = f"{base_url()}/?{urlencode({'s': code})}"
@@ -975,15 +1035,24 @@ def facilitator_view(sess):
             store.update_session(code, is_open=open_)
             st.rerun()
         with st.expander("Reset or delete this session"):
-            sure = st.checkbox("I understand this permanently deletes every answer in this session")
+            standing = code in store.STANDING_SESSIONS
+            sure = st.checkbox("I understand this permanently deletes every answer in this session",
+                               key=f"onesure_{code}")
             d1, d2 = st.columns(2)
             if d1.button("Clear all answers", disabled=not sure, width="stretch"):
                 store.reset_session(code)
                 st.rerun()
-            if d2.button("Delete session", disabled=not sure or code in store.STANDING_SESSIONS, width="stretch"):
+            if d2.button("Delete this session", disabled=not sure or standing, width="stretch"):
                 store.delete_session(code)
+                st.session_state.flash_admin = f"Deleted session {code}."
                 st.session_state.admin_code_next = "main"
                 st.rerun()
+            if standing:
+                st.caption("This is a standing session that the landing page relies on, so it cannot be "
+                           "deleted. Clearing its answers is allowed.")
+            st.caption("To delete several sessions at once, use **Sessions** below.")
+
+    sessions_panel(code)
 
 
 def admin():
@@ -1020,7 +1089,12 @@ def admin():
             st.session_state.admin_ok = False
             st.rerun()
 
+    if msg := st.session_state.pop("flash_admin", None):
+        st.toast(msg, icon=":material/delete:")
     sess = store.get_session(st.session_state.admin_code)
+    if not sess:  # the selected session was deleted from under us
+        st.session_state.admin_code_next = "main"
+        st.rerun()
     t = track_def(sess.get("track", "technical"))
     st.title(sess["name"], anchor=False)
     st.markdown(f"<span class='ql-tag'>{esc(t['name'])} · {esc(t['tagline'])}</span>", unsafe_allow_html=True)

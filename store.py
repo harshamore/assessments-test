@@ -178,9 +178,36 @@ def reset_session(code):
 
 
 def delete_session(code):
+    if code in STANDING_SESSIONS:
+        raise ValueError(f"{code} is a standing session and cannot be deleted")
     reset_session(code)
     with engine().begin() as c:
         c.execute(text("DELETE FROM sessions WHERE code=:c"), {"c": code})
+
+
+def delete_sessions(codes):
+    """Delete several sessions and everything in them. Standing sessions are skipped.
+
+    Returns (deleted, skipped) so the caller can report precisely what happened.
+    """
+    deleted, skipped = [], []
+    for code in codes:
+        if code in STANDING_SESSIONS:
+            skipped.append(code)
+            continue
+        delete_session(code)
+        deleted.append(code)
+    return deleted, skipped
+
+
+def session_stats():
+    """{code: {"participants": n, "answers": n}} for every session, in one round trip each."""
+    with engine().connect() as c:
+        parts = {r[0]: r[1] for r in c.execute(text("SELECT code, COUNT(*) FROM participants GROUP BY code"))}
+        ans = {r[0]: r[1] for r in c.execute(text("SELECT code, COUNT(*) FROM answers GROUP BY code"))}
+        notes = {r[0]: r[1] for r in c.execute(text("SELECT code, COUNT(*) FROM hotwash GROUP BY code"))}
+    codes = set(parts) | set(ans) | set(notes)
+    return {k: dict(participants=parts.get(k, 0), answers=ans.get(k, 0), notes=notes.get(k, 0)) for k in codes}
 
 
 # ---------- participants and answers ----------
