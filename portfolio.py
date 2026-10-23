@@ -4,13 +4,16 @@ This is an annex, not the headline. A Mandiant-style after-action report leads w
 capability gap and the framework obligation; product selection is a later conversation.
 The app keeps that order: findings first, this view second.
 
-Accuracy note on vendors. Cisco Secure AI Factory with NVIDIA is built on Cisco UCS
-compute, Nexus / Hyperfabric networking and NVIDIA systems, with storage from NetApp,
-Pure Storage, VAST Data and Hitachi Vantara. Supermicro is NOT a Cisco Secure AI Factory
-component; it is a separate OEM of NVIDIA-based GPU systems. It is listed here as a
-third-party alternative for customers whose compute standard is not Cisco UCS, and is
-labelled as such, so a customer-facing report does not imply a partnership that does
-not exist.
+Vendor note. Cisco Secure AI Factory with NVIDIA spans Cisco UCS compute, Nexus /
+Hyperfabric networking and NVIDIA systems, with storage from NetApp, Pure Storage,
+VAST Data and Hitachi Vantara.
+
+In August 2026 Cisco expanded the Secure AI Factory "for the rack-scale era" and added
+Supermicro: Supermicro's liquid- and air-cooled rack-scale and dense GPU systems are
+validated and sold as part of the broader Cisco AI infrastructure portfolio, available
+through Cisco and its authorised channel partners from October 2026. Supermicro
+complements rather than replaces Cisco UCS, as an additional high-density compute option.
+  https://newsroom.cisco.com/c/r/newsroom/en/us/a/y2026/m08/cisco-secure-ai-factory-nvidia-rack-scale.html
 """
 
 LAYERS = {
@@ -98,11 +101,14 @@ PRODUCTS = {
         covers=["1.1", "3.1", "3.3", "6.2"],
     ),
     "nexus": dict(
-        name="Cisco Nexus 9000 and Nexus Hyperfabric AI", vendor="Cisco", layer="network",
+        name="Cisco Nexus 9000 / N9100 Series and Nexus Hyperfabric AI", vendor="Cisco", layer="network",
         caps=["platform"],
         does="Lossless, low-latency fabric for GPU east-west traffic, with the telemetry to tell a congested "
-             "fabric apart from a model problem or an agent loop.",
+             "fabric apart from a model problem or an agent loop. Liquid-cooled N9000 switches interoperate "
+             "with liquid-cooled rack-scale compute for a rack-to-fabric liquid-cooled AI factory.",
         covers=["6.1"],
+        note="Cisco Silicon One on the front end and Spectrum-X based switching on the back end, under the "
+             "Nexus One unified networking architecture.",
     ),
     "ucs-gpu": dict(
         name="Cisco UCS C885A M8 (NVIDIA HGX)", vendor="Cisco", layer="infra",
@@ -114,19 +120,32 @@ PRODUCTS = {
     "secure-ai-factory": dict(
         name="Cisco Secure AI Factory with NVIDIA", vendor="Cisco + NVIDIA", layer="infra",
         caps=["platform"],
-        does="The validated design that packages the above: UCS compute, Nexus fabric, NVIDIA systems and "
-             "BlueField DPUs, storage from NetApp, Pure Storage, VAST Data or Hitachi Vantara, with AI Defense "
-             "and Splunk integrated rather than bolted on.",
+        does="The validated design that packages the above: Cisco UCS and Supermicro rack-scale compute, "
+             "Nexus fabric, NVIDIA systems and BlueField DPUs, storage from NetApp, Pure Storage, VAST Data "
+             "or Hitachi Vantara, with AI Defense and Splunk integrated rather than bolted on.",
         covers=["1.1", "5.1", "6.1", "7.3"],
+        note="Expanded for the rack-scale era in August 2026, adding Supermicro compute and NVIDIA Vera Rubin "
+             "NVL72 / HGX Rubin NVL8 platforms.",
     ),
-    "thirdparty-gpu": dict(
-        name="Third-party GPU systems (e.g. Supermicro NVIDIA HGX / MGX)", vendor="Third party (not Cisco)", layer="infra",
+    "supermicro-rack": dict(
+        name="Supermicro rack-scale GPU systems (in Cisco Secure AI Factory)", vendor="Cisco + Supermicro + NVIDIA", layer="infra",
         caps=["platform"],
-        does="Where the customer's compute standard is not Cisco UCS, the same control set applies above the "
-             "hardware line: AI Defense at the gateway, Isovalent in the kernel, Splunk for telemetry.",
+        does="Liquid- and air-cooled rack-scale and dense GPU systems, validated and sold as part of the Cisco "
+             "AI infrastructure portfolio since the August 2026 rack-scale expansion of Secure AI Factory. "
+             "Supports NVIDIA Vera Rubin NVL72 and HGX Rubin NVL8 for trillion-parameter training and "
+             "high-throughput inference. Complements Cisco UCS rather than replacing it.",
         covers=["1.1", "6.1"],
-        note="Not a Cisco Secure AI Factory component. Listed so the architecture conversation survives a "
-             "customer who has already standardised on another OEM; the security layers do not change.",
+        note="Available through Cisco and authorised channel partners from October 2026. Pairs with "
+             "liquid-cooled Cisco N9000 Series switches for rack-to-fabric liquid cooling: at 200 kW+ per "
+             "rack, liquid cooling is a system-level requirement rather than an option.",
+    ),
+    "agenticops": dict(
+        name="AgenticOps via Cisco Cloud Control", vendor="Cisco", layer="observe",
+        caps=["platform", "soc"],
+        does="End-to-end observability across the AI factory that correlates job health with compute, NIC, "
+             "optics and network performance, so a stalled agent workload can be separated from a fabric or "
+             "thermal problem.",
+        covers=["6.1", "6.2"],
     ),
     "duo-identity": dict(
         name="Cisco Duo and Identity Intelligence", vendor="Cisco", layer="identity",
@@ -165,9 +184,18 @@ STACK_STAGES = [
      "Correlation so agent, kernel, network and infrastructure signals arrive as a single incident with one "
      "timeline. This is what situation 7.1 tests and what the executive track depends on."),
     ("Stage 5: own the platform",
-     ["secure-ai-factory", "ucs-gpu", "nexus", "hypershield", "duo-identity"],
+     ["secure-ai-factory", "ucs-gpu", "supermicro-rack", "nexus", "agenticops", "hypershield", "duo-identity"],
      "Relevant when open-weight models handling regulated data are moving on-premises, or when the fabric and "
-     "GPU estate are being built rather than rented."),
+     "GPU estate are being built rather than rented. At rack-scale densities the thermal and network design "
+     "stops being a procurement detail and becomes part of the security architecture: shared GPU capacity is "
+     "what situation 6.1 abuses."),
+]
+
+SOURCES = [
+    ("Cisco Expands Secure AI Factory with NVIDIA for the Rack-Scale Era (August 2026)",
+     "https://newsroom.cisco.com/c/r/newsroom/en/us/a/y2026/m08/cisco-secure-ai-factory-nvidia-rack-scale.html"),
+    ("Supermicro: Bringing Rack-Scale AI to the Enterprise Together with Cisco",
+     "https://learn-more.supermicro.com/data-center-stories/supermicro-cisco-secure-ai-factory-nvidia"),
 ]
 
 

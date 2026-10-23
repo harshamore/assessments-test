@@ -34,6 +34,11 @@ actually escalated, not with ground truth.** If the technical room never escalat
 poisoning, the executives decide on disclosure without knowing about it. That divergence is
 reported as an escalation finding, and it is invisible if the two groups are exercised separately.
 
+**To switch modes:** facilitator view → *Exercise mode*, the first panel in the Facilitator tab.
+The current mode is shown in the sidebar on every tab. Sessions created before this feature
+existed default to the technical track, so the executive injects stay hidden until you switch.
+Switching takes effect immediately for everyone and keeps answers already given.
+
 ## Frameworks
 
 The Cisco Integrated AI Security and Safety Framework stays the spine: situations are authored
@@ -64,7 +69,7 @@ a report leaves the building.**
 | `tracks.py` | The two exercise modes: what each means, who attends, and what it produces |
 | `threat.py` | Threat-intelligence profile, tradecraft, attack lifecycle, synthetic indicators |
 | `frameworks.py` | Framework catalogues and identifier lookup |
-| `portfolio.py` | Cisco Secure AI Factory technology annex, by layer and by capability gap |
+| `portfolio.py` | Cisco Secure AI Factory technology annex, by layer and by capability gap, including the August 2026 rack-scale expansion with Supermicro |
 | `scoring.py` | Readiness, capability maturity, framework rollups, findings and the 30/60/90 roadmap |
 | `store.py` | Database access (Postgres in production, SQLite locally) |
 

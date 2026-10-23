@@ -857,7 +857,7 @@ def portfolio_view(sess):
         rows.append({"Objective": f"{o} {OBS[o]}", "Readiness": pct(v), "Status": LEVEL_WORD[level(v)],
                      "_v": -1 if v is None else v, "Products that address it": "; ".join(prods)})
     st.dataframe(pd.DataFrame(rows).sort_values("_v").drop(columns="_v"), hide_index=True, width="stretch")
-    st.markdown("**Sources:** " + " · ".join(f"[{n}]({u})" for n, u in SOURCES))
+    st.markdown("**Sources:** " + " · ".join(f"[{n}]({u})" for n, u in list(SOURCES) + list(portfolio.SOURCES)))
 
 
 def responses_view(code):
@@ -895,9 +895,39 @@ def responses_view(code):
             st.rerun()
 
 
+def mode_block(sess):
+    """Exercise mode. First thing in the facilitator view, because it decides everything else:
+    which injects are played, which roles can join, and what the after-action report can conclude."""
+    code = sess["code"]
+    current = sess.get("track", "technical")
+    with st.container(border=True):
+        st.markdown("### Exercise mode")
+        n_tech = len(injects_for("technical"))
+        n_full = len(injects_for("full"))
+        st.caption(f"Technical track plays {n_tech} situations. Full engagement plays {n_full}: the same "
+                   f"{n_tech} plus {n_full - n_tech} executive crisis decisions in a second room. "
+                   "Switching takes effect immediately for everyone; answers already given are kept.")
+        track = st.segmented_control("Track", TRACK_ORDER, default=current,
+                                     key=f"track_{code}", format_func=lambda k: TRACKS[k]["name"])
+        if track and track != current:
+            store.update_session(code, track=track)
+            st.rerun()
+        if not plays_executive(current):
+            st.info("**The executive track is not in play.** This session runs the technical track only, so "
+                    "the 7 executive crisis decisions are hidden, executive roles cannot join, and NIST CSF 2.0 "
+                    "GOVERN and RESPOND cannot be rated. Choose **Full engagement** above to enable them.",
+                    icon=":material/gavel:")
+        else:
+            st.success(f"**Full engagement is in play.** {n_full - n_tech} executive decisions (E1–E7) are live "
+                       "alongside the technical situations. Executive roles now appear on the join form, and "
+                       "participants are routed by the role they pick.", icon=":material/check_circle:")
+        track_card(current)
+
+
 def facilitator_view(sess):
     code = sess["code"]
     link = f"{base_url()}/?{urlencode({'s': code})}"
+    mode_block(sess)
     with st.container(border=True):
         l, r = st.columns([1, 2])
         png = qr_png(link)
@@ -907,14 +937,6 @@ def facilitator_view(sess):
             st.code(link, language=None)
             st.download_button("Download QR code (PNG)", png, f"ttx_{code}_qr.png", "image/png")
     ids = play_ids(sess)
-    with st.container(border=True):
-        st.markdown("**Exercise mode**")
-        track = st.segmented_control("Track", TRACK_ORDER, default=sess.get("track", "technical"),
-                                     key=f"track_{code}", format_func=lambda k: TRACKS[k]["name"])
-        if track and track != sess.get("track", "technical"):
-            store.update_session(code, track=track)
-            st.rerun()
-        track_card(sess.get("track", "technical"))
     with st.container(border=True):
         st.markdown("**Pace**")
         mode = st.segmented_control("Mode", ["self", "led"], default=sess["mode"], key=f"mode_{code}",
@@ -977,6 +999,12 @@ def admin():
         if st.session_state.get("admin_code") not in codes:
             st.session_state.admin_code = codes[0]
         st.selectbox("Session", codes, format_func=names.get, key="admin_code")
+        _cur = next((s for s in sessions if s["code"] == st.session_state.admin_code), None)
+        if _cur:
+            _tr = _cur.get("track") or "technical"
+            st.caption(f"Mode: **{TRACKS[_tr]['name']}** · "
+                       f"{len(injects_for(_tr))} situations" +
+                       ("" if plays_executive(_tr) else "  \nExecutive track off — change it in the Facilitator tab."))
         with st.form("newsess", clear_on_submit=True):
             nm = st.text_input("New session name", placeholder="e.g. Acme Bank, 4 Nov")
             nt = st.radio("Exercise mode", TRACK_ORDER, format_func=lambda k: TRACKS[k]["name"],
