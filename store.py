@@ -33,6 +33,40 @@ MIGRATIONS = [
     "ALTER TABLE sessions ADD COLUMN track VARCHAR(16) NOT NULL DEFAULT 'technical'",
 ]
 
+# Standing sessions, one per exercise mode, so the landing page always has somewhere to
+# send someone who arrived without a join link. Neither can be deleted from the UI.
+STANDING_SESSIONS = {
+    "main": ("Main session (technical track)", "technical"),
+    "mainfull": ("Main session (full engagement)", "full"),
+}
+
+
+def ensure_standing():
+    """Create any missing standing session. Safe to call repeatedly."""
+    with engine().begin() as c:
+        have = {r[0] for r in c.execute(text("SELECT code FROM sessions"))}
+        for code, (name, track) in STANDING_SESSIONS.items():
+            if code not in have:
+                c.execute(text("INSERT INTO sessions (code, name, track, created_at) VALUES (:c,:n,:k,:t)"),
+                          {"c": code, "n": name, "k": track, "t": time.time()})
+
+
+def session_for_track(track):
+    """The session a landing-page visitor should join for a given mode.
+
+    Prefers the standing session for that mode; otherwise the most recently created open
+    session of that mode, so a facilitator's own session is used when one is running.
+    """
+    standing = next((c for c, (_n, k) in STANDING_SESSIONS.items() if k == track), None)
+    with engine().connect() as c:
+        rows = [dict(r) for r in c.execute(
+            text("SELECT code, name, track, is_open, created_at FROM sessions WHERE track=:k "
+                 "ORDER BY created_at DESC"), {"k": track}).mappings()]
+    if standing and any(r["code"] == standing for r in rows):
+        return standing
+    open_ = [r for r in rows if r["is_open"]]
+    return (open_ or rows)[0]["code"] if (open_ or rows) else None
+
 
 def _db_url():
     try:
@@ -66,7 +100,9 @@ def engine():
             pass  # column already present
     with eng.begin() as c:
         if not c.execute(text("SELECT 1 FROM sessions LIMIT 1")).first():
-            c.execute(text("INSERT INTO sessions (code, name, created_at) VALUES ('main', 'Main session', :t)"), {"t": time.time()})
+            for code, (name, track) in STANDING_SESSIONS.items():
+                c.execute(text("INSERT INTO sessions (code, name, track, created_at) VALUES (:c, :n, :k, :t)"),
+                          {"c": code, "n": name, "k": track, "t": time.time()})
     return eng
 
 

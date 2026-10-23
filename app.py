@@ -980,7 +980,7 @@ def facilitator_view(sess):
             if d1.button("Clear all answers", disabled=not sure, width="stretch"):
                 store.reset_session(code)
                 st.rerun()
-            if d2.button("Delete session", disabled=not sure or code == "main", width="stretch"):
+            if d2.button("Delete session", disabled=not sure or code in store.STANDING_SESSIONS, width="stretch"):
                 store.delete_session(code)
                 st.session_state.admin_code_next = "main"
                 st.rerun()
@@ -1066,8 +1066,80 @@ def admin():
         live_resp()
 
 
+def lobby():
+    """Landing page when someone arrives without a join link.
+
+    Previously this silently served the 'main' session, which is the technical track, so
+    anyone opening the bare app URL saw the technical track no matter which sessions existed.
+    Now the mode is an explicit choice, with what each one covers and does not.
+    """
+    st.markdown(f"<span class='ql-tag'>{esc(SUBTITLE)}</span>", unsafe_allow_html=True)
+    st.title(TITLE, anchor=False)
+    st.markdown("##### An attacker is turning your company's AI agents against it. "
+                "Would you see it, and would you stop it?")
+    st.write("This is a discussion-based tabletop exercise. Nothing runs against live systems. "
+             "Choose how you want to run it: the two modes ask different questions and produce "
+             "different reports.")
+    st.info("If a facilitator gave you a QR code or a join link, use that instead. It carries the "
+            "mode they chose for your session, and your answers go to their results.",
+            icon=":material/qr_code:")
+
+    store.ensure_standing()
+    cols = st.columns(len(TRACK_ORDER))
+    for col, key in zip(cols, TRACK_ORDER):
+        t = TRACKS[key]
+        n = len(injects_for(key))
+        with col, st.container(border=True):
+            st.markdown(f"### {t['name']}")
+            st.caption(t["tagline"])
+            st.markdown(f"**{n} situations** · {t['duration']}")
+            st.write(t["what_it_is"])
+
+            st.markdown("**The question it answers**")
+            st.caption(t["answers_the_question"])
+
+            st.markdown("**Who is in the room**")
+            st.caption(t["who"])
+
+            st.markdown("**What it covers**")
+            for o in t["outcome"]:
+                st.caption(f"✓ {o}")
+
+            st.markdown("**What it does not cover**")
+            for d in t["does_not_cover"]:
+                st.caption(f"✗ {d}")
+
+            st.markdown("**What it proves**")
+            st.caption(t["proves"])
+            st.markdown("**What it cannot prove**")
+            st.caption(t["cannot_prove"])
+
+            code = store.session_for_track(key)
+            if not code:
+                st.warning("No session is available for this mode yet. Ask the facilitator to create one.")
+            elif st.button(f"Start the {t['name'].lower()}", key=f"go_{key}", type="primary", width="stretch"):
+                st.query_params["s"] = code
+                st.rerun()
+
+    with st.expander("How the two modes differ, in one table"):
+        rows = []
+        for key in TRACK_ORDER:
+            t = TRACKS[key]
+            rows.append({"Mode": t["name"], "Situations": len(injects_for(key)),
+                         "Rooms": "One" if key == "technical" else "Two (technical + executive)",
+                         "Duration": t["duration"], "Proves": t["proves"],
+                         "Cannot prove": t["cannot_prove"]})
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+        st.caption("In the full engagement the two rooms are coupled: executives are seeded with what the "
+                   "technical room actually escalated, not with the ground truth, so the escalation path "
+                   "itself is tested. NIST CSF 2.0 GOVERN and RESPOND can only be rated in that mode.")
+    st.caption("Facilitators: open this address with `?admin` to run a session and see results.")
+
+
 # =====================================================================
 if "admin" in st.query_params:
     admin()
+elif st.query_params.get("s"):
+    participant(st.query_params["s"])
 else:
-    participant(st.query_params.get("s", "main"))
+    lobby()

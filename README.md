@@ -39,6 +39,24 @@ The current mode is shown in the sidebar on every tab. Sessions created before t
 existed default to the technical track, so the executive injects stay hidden until you switch.
 Switching takes effect immediately for everyone and keeps answers already given.
 
+### Which session a participant gets
+
+The mode belongs to the **session**, not to the app, so the URL decides what someone sees:
+
+| URL | What loads |
+| --- | --- |
+| `/?s=<code>` | That session, in the mode the facilitator chose for it. This is what the QR code and join link produce — always prefer it. |
+| `/` (no parameters) | The **mode chooser**: both modes side by side with what each covers and does not, and a button to enter the standing session for that mode. |
+| `/?admin` | Facilitator view. |
+
+Two standing sessions are seeded so the chooser always has somewhere to send someone:
+`main` (technical track) and `mainfull` (full engagement). Neither can be deleted from the UI.
+Picking a mode in the chooser sets `?s=` and so produces a shareable URL.
+
+Note the earlier behaviour this replaced: the bare URL used to serve `main` silently, which is
+the technical track, so opening the app's plain address showed the technical track no matter
+which sessions existed.
+
 ## Frameworks
 
 The Cisco Integrated AI Security and Safety Framework stays the spine: situations are authored
