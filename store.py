@@ -21,6 +21,16 @@ SCHEMA = [
         pid VARCHAR(40) NOT NULL, code VARCHAR(32) NOT NULL, inject VARCHAR(8) NOT NULL, act TEXT,
         d VARCHAR(16) NOT NULL, f VARCHAR(16) NOT NULL, o VARCHAR(16) NOT NULL, at DOUBLE PRECISION NOT NULL,
         PRIMARY KEY (pid, inject))""",
+    """CREATE TABLE IF NOT EXISTS hotwash (
+        code VARCHAR(32) NOT NULL, n INTEGER NOT NULL, note TEXT,
+        at DOUBLE PRECISION NOT NULL, PRIMARY KEY (code, n))""",
+]
+
+# Added after first release, so existing databases need the column rather than the table.
+# "ADD COLUMN IF NOT EXISTS" is Postgres-only, so each is attempted and the duplicate-column
+# error swallowed; that keeps one code path for SQLite and Postgres.
+MIGRATIONS = [
+    "ALTER TABLE sessions ADD COLUMN track VARCHAR(16) NOT NULL DEFAULT 'technical'",
 ]
 
 
@@ -48,6 +58,13 @@ def engine():
     with eng.begin() as c:
         for s in SCHEMA:
             c.execute(text(s))
+    for m in MIGRATIONS:
+        try:
+            with eng.begin() as c:
+                c.execute(text(m))
+        except Exception:
+            pass  # column already present
+    with eng.begin() as c:
         if not c.execute(text("SELECT 1 FROM sessions LIMIT 1")).first():
             c.execute(text("INSERT INTO sessions (code, name, created_at) VALUES ('main', 'Main session', :t)"), {"t": time.time()})
     return eng
@@ -69,24 +86,39 @@ def get_session(code):
     except ValueError:
         r["revealed"] = []
     r["is_open"] = bool(r["is_open"])
+    r.setdefault("track", "technical")
+    r["track"] = r["track"] or "technical"
     return r
 
 
 def list_sessions():
     with engine().connect() as c:
-        return [dict(r) for r in c.execute(text("SELECT code, name, created_at FROM sessions ORDER BY created_at DESC")).mappings()]
+        return [dict(r) for r in c.execute(text("SELECT code, name, track, created_at FROM sessions ORDER BY created_at DESC")).mappings()]
 
 
-def create_session(name):
+def create_session(name, track="technical"):
     code = pysecrets.token_urlsafe(5).replace("-", "x").replace("_", "y")[:6].lower()
     with engine().begin() as c:
-        c.execute(text("INSERT INTO sessions (code, name, created_at) VALUES (:c, :n, :t)"),
-                  {"c": code, "n": name.strip()[:200] or "Untitled session", "t": time.time()})
+        c.execute(text("INSERT INTO sessions (code, name, track, created_at) VALUES (:c, :n, :k, :t)"),
+                  {"c": code, "n": name.strip()[:200] or "Untitled session", "k": track, "t": time.time()})
     return code
 
 
+def save_hotwash(code, n, note):
+    with engine().begin() as c:
+        c.execute(text("""INSERT INTO hotwash (code, n, note, at) VALUES (:c,:n,:x,:t)
+                          ON CONFLICT (code, n) DO UPDATE SET note=excluded.note, at=excluded.at"""),
+                  {"c": code, "n": n, "x": (note or "").strip()[:4000], "t": time.time()})
+
+
+def get_hotwash(code):
+    with engine().connect() as c:
+        rows = c.execute(text("SELECT n, note FROM hotwash WHERE code=:c"), {"c": code}).mappings()
+        return {r["n"]: r["note"] for r in rows}
+
+
 def update_session(code, **fields):
-    allowed = {"mode", "current_inject", "revealed", "is_open", "name"}
+    allowed = {"mode", "current_inject", "revealed", "is_open", "name", "track"}
     sets, params = [], {"c": code}
     for k, v in fields.items():
         if k not in allowed:
@@ -106,6 +138,7 @@ def reset_session(code):
     with engine().begin() as c:
         c.execute(text("DELETE FROM answers WHERE code=:c"), {"c": code})
         c.execute(text("DELETE FROM participants WHERE code=:c"), {"c": code})
+        c.execute(text("DELETE FROM hotwash WHERE code=:c"), {"c": code})
 
 
 def delete_session(code):

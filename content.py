@@ -1,13 +1,17 @@
 """Exercise content for Operation Quiet Ledger.
 
-Taxonomy: Cisco Integrated AI Security and Safety Framework (arXiv 2512.12921).
-Everything the app shows comes from this file, so edit situations here.
+Taxonomy: Cisco Integrated AI Security and Safety Framework (arXiv 2512.12921), which
+stays the spine. Framework mappings (ATT&CK, ATLAS, NIST CSF 2.0, AI RMF, ISO 42001,
+OWASP), MSEL delivery detail and evaluator criteria live in mappings.py and are merged
+into each inject at import. Executive-track injects live in exec_track.py.
+
+Edit scenario prose here; edit framework mappings in mappings.py.
 """
 
 TITLE = "Operation Quiet Ledger"
-SUBTITLE = "AI security tabletop for a multi-agent application"
+SUBTITLE = "Intelligence-led AI security tabletop for a multi-agent application"
 
-ROLES = [
+TECH_ROLES = [
     "AI platform owner", "AI security engineer", "Agent reliability engineer",
     "Platform and cloud-native engineer", "Infrastructure owner", "SOC lead",
     "Knowledge and data owner", "Business process owner", "CISO or delegate",
@@ -271,6 +275,92 @@ INJECTS = [
 ]
 INJECT_IDS = [i["id"] for i in INJECTS]
 BY_ID = {i["id"]: i for i in INJECTS}
+
+# --------------------------------------------------------------------------- #
+# Merge the framework mappings, MSEL detail and evaluator criteria onto each
+# technical inject, then fold in the executive track. Every inject ends up with
+# the same key set, so no view has to special-case a track.
+# --------------------------------------------------------------------------- #
+from exec_track import (EXEC_CAP_ORDER, EXEC_CAPS, EXEC_DECIDE, EXEC_FIRST,  # noqa: E402
+                        EXEC_INJECTS, EXEC_MODULES, EXEC_ROLES)
+from mappings import ENRICH, OBJECTIVE_ORDER, OBJECTIVES  # noqa: E402
+
+_INJECT_DEFAULTS = dict(kind="technical", ob=[], tech=[], attack=[], atlas=[], csf=[],
+                        airmf=[], owasp=[], objs=[], evaluate=[], clocks=[],
+                        phase=None, delivery="", target="")
+
+for _inj in INJECTS:
+    _inj.update(ENRICH.get(_inj["id"], {}))
+for _inj in list(INJECTS) + list(EXEC_INJECTS):
+    for _k, _v in _INJECT_DEFAULTS.items():
+        _inj.setdefault(_k, list(_v) if isinstance(_v, list) else _v)
+
+ALL_INJECTS = list(INJECTS) + list(EXEC_INJECTS)
+ALL_INJECT_IDS = [i["id"] for i in ALL_INJECTS]
+ALL_BY_ID = {i["id"]: i for i in ALL_INJECTS}
+
+ALL_MODULES = {**MODULES, **EXEC_MODULES}
+
+# ROLES stays the technical list so existing imports keep their meaning.
+ROLES = TECH_ROLES
+ALL_ROLES = TECH_ROLES + EXEC_ROLES
+
+# Executive roles decide which track a participant plays; no schema change needed.
+_EXEC_ROLE_SET = set(EXEC_ROLES)
+
+
+def kind_for_role(role):
+    return "executive" if role in _EXEC_ROLE_SET else "technical"
+
+
+def roles_for(track):
+    """Roles offered on the join form. Observer stays available in both."""
+    from tracks import plays_executive
+    return list(TECH_ROLES) + (list(EXEC_ROLES) if plays_executive(track) else [])
+
+
+def injects_for(track, kind=None):
+    """Injects played in a track, optionally narrowed to one participant's kind."""
+    from tracks import plays_executive
+    out = [i for i in ALL_INJECTS if i["kind"] == "technical" or plays_executive(track)]
+    if kind:
+        out = [i for i in out if i["kind"] == kind]
+    return out
+
+
+# ---- answer scales, resolved per inject kind -------------------------------- #
+def decide_map(kind):
+    """Question 2: detection (technical) or decision readiness (executive)."""
+    return EXEC_DECIDE if kind == "executive" else DETECT
+
+
+def first_map(kind):
+    """Question 3: which capability or which function acts first."""
+    return EXEC_FIRST if kind == "executive" else FIRST
+
+
+def owner_map(kind):
+    """Question 4: ownership. The same question for both tracks."""
+    return OWNER
+
+
+def caps_map(kind):
+    return EXEC_CAPS if kind == "executive" else CAPS
+
+
+def cap_order(kind):
+    return EXEC_CAP_ORDER if kind == "executive" else CAP_ORDER
+
+
+def decide_label(kind):
+    return ("2. Could you make this decision inside the time available, today?"
+            if kind == "executive" else
+            "2. Would your organization detect this today?")
+
+
+def first_label(kind):
+    return ("3. Who would make the call first?" if kind == "executive"
+            else "3. What would catch it first?")
 
 # Capability -> Cisco products. Shown only to the facilitator.
 CISCO = {
