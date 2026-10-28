@@ -1,6 +1,13 @@
 # Upper bounds are deliberate: an unpinned sqlalchemy>=2.0 let a redeploy pick up 2.1,
 # which switched the default driver for "postgresql://" and broke the app at startup.
-streamlit>=1.50,<2
+#
+# streamlit is pinned exactly, not merely capped. Each Streamlit version ships its own
+# content-hashed frontend chunks (static/js/DataFrame.<hash>.js and friends, fetched lazily
+# the first time a dataframe renders). If a redeploy changes the Streamlit version those
+# hashes change, and a browser tab still holding the previous build requests a chunk that no
+# longer exists: "Failed to fetch dynamically imported module". Pinning keeps the bundle
+# byte-identical across redeploys, so open facilitator tabs survive them.
+streamlit==1.66.1
 sqlalchemy>=2.0,<2.2
 psycopg2-binary>=2.9,<3
 pandas>=2,<3

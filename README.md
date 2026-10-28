@@ -144,6 +144,36 @@ Dependencies are pinned with upper bounds on purpose. An unpinned `sqlalchemy>=2
 let a redeploy pick up 2.1, which changed the default driver for `postgresql://` and broke the
 app at startup; `store.py` now names `psycopg2` explicitly as well. Note that altair 5 cannot be
 imported on Python 3.14, which is what Streamlit Cloud runs, so altair 6 must stay reachable.
+`streamlit` is pinned **exactly**, for the reason in the next section.
+
+## Troubleshooting
+
+### `Failed to fetch dynamically imported module: .../static/js/DataFrame.<hash>.js`
+
+A browser-side asset error, not a Python one: no traceback, and the app's own logs stay clean.
+Streamlit's frontend loads parts of itself lazily, and the dataframe component is fetched the
+first time an `st.dataframe` renders — which is why it tends to appear on the facilitator
+panel, the most dataframe-heavy page. The request returned something other than that
+JavaScript file. Causes, in the order worth checking:
+
+1. **Reload the page first** (Cmd/Ctrl + Shift + R). If the chunk is present on the server,
+   this fixes it immediately and nothing else needs doing.
+2. **The app was asleep or restarting.** Community Cloud spins idle apps down, and asset
+   requests then get a holding redirect instead of the file. Open the app a few minutes before
+   a session.
+3. **The sign-in session expired.** If the app is private, an expired auth cookie makes asset
+   requests redirect to the login page, and an HTML redirect is not a JavaScript module.
+   Reloading re-authenticates.
+4. **A redeploy changed the Streamlit version.** Each version ships its own content-hashed
+   chunks, so an open tab can ask for a filename that no longer exists. This is why
+   `streamlit` is pinned exactly rather than range-capped: the bundle then stays identical
+   across redeploys and open tabs survive them.
+
+### Participants are asked to sign in
+
+The app is private. *Settings → Sharing* → make it **public** so participants can join without
+a Streamlit account. Results stay behind `ADMIN_PASSWORD` either way. A private app also adds
+the auth-expiry failure mode above.
 
 ## Run locally
 ```
